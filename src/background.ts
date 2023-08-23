@@ -1,48 +1,55 @@
+import { setShortsVisibility } from "./shorts"
+
+async function isExtensionActivated(): Promise<Boolean> {
+  const result = await chrome.storage.local.get(['isActivated'])
+  return result.isActivated
+}
+
+async function hideShorts(tabId: number) {
+  chrome.scripting.executeScript({
+    target: { tabId },
+    func: setShortsVisibility,
+    args: [false]
+  })
+}
+
+async function showShorts(tabId: number) {
+  chrome.scripting.executeScript({
+    target: { tabId },
+    func: setShortsVisibility,
+    args: [true]
+  })
+}
+
 chrome.runtime.onInstalled.addListener(() => {
   chrome.action.setBadgeText({
     text: 'OFF',
   })
+  chrome.storage.local.set({ isActivated: false })
 })
 
 const YOUTUBE_URL = 'https://www.youtube.com'
 
 chrome.webNavigation.onCompleted.addListener(async (details) => {
   const tabUrl = details.url
-  if (tabUrl.startsWith(YOUTUBE_URL)) {
-    await chrome.scripting.insertCSS({
-      files: ['focus-mode.css'],
-      target: { tabId: details.tabId },
-    })
-  }
+  if (!tabUrl.startsWith(YOUTUBE_URL)) return
+
+  const isActivated = await isExtensionActivated()
+  if (!isActivated) return
+
+  hideShorts(details.tabId)
 })
 
 chrome.action.onClicked.addListener(async (tab) => {
-  if (!tab.url) return
-  if (tab.url.startsWith(YOUTUBE_URL)) {
-    // Retrieve the action badge to check if the extension is 'ON' or 'OFF'
-    const prevState = await chrome.action.getBadgeText({ tabId: tab.id })
-    // Next state will always be the opposite
-    const nextState = prevState === 'ON' ? 'OFF' : 'ON'
-
-    // Set the action badge to the next state
-    await chrome.action.setBadgeText({
-      tabId: tab.id,
-      text: nextState,
-    })
-    if (!tab.id) return
-    if (nextState === 'ON') {
-      // Insert the CSS file when the user turns the extension on
-      console.log('on')
-      await chrome.scripting.insertCSS({
-        files: ['focus-mode.css'],
-        target: { tabId: tab.id },
-      })
-    } else if (nextState === 'OFF') {
-      // Remove the CSS file when the user turns the extension off
-      await chrome.scripting.removeCSS({
-        files: ['focus-mode.css'],
-        target: { tabId: tab.id },
-      })
-    }
+  const isActivated = await isExtensionActivated()
+  chrome.storage.local.set({ isActivated: !isActivated })
+  chrome.action.setBadgeText({
+    text: isActivated ? 'OFF' : 'ON',
+  })
+  if (!tab.id) return
+  if (!isActivated) {
+    hideShorts(tab.id)
+  } else {
+    showShorts(tab.id)
   }
 })

@@ -22,7 +22,8 @@
   },
   "permissions": [
     "scripting",
-    "webNavigation"
+    "webNavigation",
+    "storage"
   ],
   "host_permissions": [
     "*://*.youtube.com/*"
